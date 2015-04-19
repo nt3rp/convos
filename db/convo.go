@@ -1,6 +1,7 @@
 package db
 
 import (
+	"github.com/juju/errgo"
 	_ "github.com/lib/pq"
 )
 
@@ -8,16 +9,21 @@ type Convo struct {
 	Id        int      `json:"id"`
 	Sender    int      `json:"sender"`
 	Recipient int      `json:"recipient"`
+	Parent    int      `json:"parent"`
 	Subject   string   `json:"subject"`
 	Body      string   `json:"body"`
 	Status    string   `json:"status"`
 	Children  []*Convo `json:"replies"`
 }
 
-func GetConvos() ([]*Convo, error){
+func (c *Convo) Validate() bool {
+	return true
+}
+
+func GetConvos() ([]*Convo, error) {
 	db, err := DB()
 	if err != nil {
-		return nil, err
+		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
 	}
 
 	rows, err := db.Query(`
@@ -31,23 +37,23 @@ func GetConvos() ([]*Convo, error){
 	for rows.Next() {
 		c := &Convo{}
 		if err := rows.Scan(&c.Id, &c.Sender, &c.Recipient, &c.Subject, &c.Body); err != nil {
-			return cs, err
+			return cs, errgo.WithCausef(err, ErrRowScan, "Error Scanning Row")
 		}
 
 		cs = append(cs, c)
 	}
 
 	if err := rows.Err(); err != nil {
-		return cs, err
+		return cs, errgo.WithCausef(err, ErrRowUnknown, "Unknown problem with `rows` object")
 	}
 
-	return cs, err
+	return cs, nil
 }
 
 func GetConvo(id string) (*Convo, error) {
 	db, err := DB()
 	if err != nil {
-		return nil, err
+		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
 	}
 
 	c := &Convo{}
@@ -59,7 +65,11 @@ func GetConvo(id string) (*Convo, error) {
 		&c.Id, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
 	)
 
-	return c, err
+	if err != nil {
+		return c, errgo.WithCausef(err, ErrRowScan, "Error Scanning Row")
+	}
+
+	return c, nil
 }
 
 func DeleteConvo(id string) error {
@@ -76,22 +86,55 @@ func DeleteConvo(id string) error {
 
 	// TODO: Check rows affected
 
-	return err
-}
-
-func CreateConvo(convo *Convo) error {
-	db, err := DB()
 	if err != nil {
-		return err
+		return errgo.WithCausef(err, ErrRowDelete, "Error Deleting Rows")
 	}
 
-	_, err = db.Exec(`
+	return nil
+}
+
+func CreateConvo(convo *Convo) (*Convo, error) {
+	db, err := DB()
+	if err != nil {
+		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
+	}
+
+	c := &Convo{}
+	err = db.QueryRow(`
 		INSERT INTO
 		convos (parent_id, sender_id, recipient_id, subject, body)
-		VALUES (lastval(), $1, $2, $3, $4)
-	`, convo.Sender, convo.Recipient, convo.Subject, convo.Body)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, sender_id, recipient_id, subject, body
+	`, convo.Parent, convo.Sender, convo.Recipient, convo.Subject, convo.Body).Scan(
+		&c.Id, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
+	)
 
-	// TODO: Check rows affected
+	if err != nil {
+		return nil, errgo.WithCausef(err, ErrRowCreate, "Error Creating Rows")
+	}
 
-	return err
+	return c, nil
+}
+
+func UpdateConvo(id, body string) (*Convo, error) {
+	db, err := DB()
+	if err != nil {
+		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
+	}
+
+	c := &Convo{}
+	err = db.QueryRow(`
+		UPDATE convos
+		SET body = $2
+		WHERE id = $1
+		RETURNING id, sender_id, recipient_id, subject, body
+	`, id, body).Scan(
+		&c.Id, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
+	)
+
+	if err != nil {
+		return nil, errgo.WithCausef(err, ErrRowUpdate, "Error Updating Row")
+	}
+
+	return c, nil
 }

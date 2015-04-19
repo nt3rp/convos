@@ -24,10 +24,11 @@ func main() {
 	// TODO: Fix trailing slashes
 	m.Group("/convos", func(r martini.Router) {
 		r.Get("/", handlers.GetConvos)
-		r.Get("/:id/", handlers.GetConvo)
 		r.Post("/", handlers.CreateConvo)
-		r.Patch("/:id/", handlers.UpdateConvo)  // Generally, edits aren't allowed. Restrict this to updating the status...
+		r.Get("/:id/", handlers.GetConvo)
+		r.Patch("/:id/", handlers.UpdateConvo)
 		r.Delete("/:id/", handlers.DeleteConvo)
+		r.Post("/:id/reply/", handlers.CreateConvo)
 	})
 
 	log.Printf("listening on %v\n", httpPort)

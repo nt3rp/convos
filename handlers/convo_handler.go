@@ -11,6 +11,10 @@ import (
 	"github.com/nt3rp/convos/db"
 )
 
+var (
+	userId string = "0"
+)
+
 func returnEnvelope(r render.Render, obj interface{}, err error) {
 	// We are able to distinguish between multiple error types,
 	// but for all the errors we have, they indicate an internal server error
@@ -46,19 +50,19 @@ func getJsonFromRequest(req *http.Request) (map[string]string, error) {
 }
 
 func GetConvos(r render.Render) {
-	convos, err := db.GetConvos()
+	convos, err := db.GetConvos(userId)
 	returnEnvelope(r, convos, err)
 }
 
 func GetConvo(params martini.Params, r render.Render) {
 	id := params["id"]
-	convo, err := db.GetConvo(id)
+	convo, err := db.GetConvo(userId, id)
 	returnEnvelope(r, convo, err)
 }
 
 func DeleteConvo(params martini.Params, r render.Render) {
 	id := params["id"]
-	err := db.DeleteConvo(id)
+	err := db.DeleteConvo(userId, id)
 	returnEnvelope(r, "success", err)
 }
 
@@ -71,7 +75,7 @@ func UpdateConvo(req *http.Request, params martini.Params, r render.Render) {
 	}
 
 	id := params["id"]
-	convo, err := db.UpdateConvo(id, patch["body"])
+	convo, err := db.UpdateConvo(userId, id, patch["body"])
 	returnEnvelope(r, convo, err)
 }
 
@@ -89,7 +93,7 @@ func CreateConvo(req *http.Request, params martini.Params, r render.Render) {
 		convo.Parent = id
 
 		// This incurs an extra DB call, but it seems like the simplest course of action to maintain the subject
-		parent, err := db.GetConvo(params["id"])
+		parent, err := db.GetConvo(userId, params["id"])
 		if err != nil {
 			returnEnvelope(r, convo, err)
 			return
@@ -99,7 +103,7 @@ func CreateConvo(req *http.Request, params martini.Params, r render.Render) {
 	}
 
 	// TODO: Need to return the saved object from the DB...
-	newConvo, err := db.CreateConvo(convo)
+	newConvo, err := db.CreateConvo(userId, convo)
 
 	returnEnvelope(r, newConvo, err)
 }

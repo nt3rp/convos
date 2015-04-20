@@ -36,6 +36,7 @@ func GetConvos(userId string) ([]*Convo, error) {
 		LEFT JOIN read_status AS r ON r.thread_id = c.id AND r.user_id = $1
 		WHERE c.parent_id = c.id
 		AND (c.sender_id = $1 OR c.recipient_id = $1)
+		ORDER BY c.id DESC
 	`, userId)
 	defer rows.Close()
 

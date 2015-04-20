@@ -13,4 +13,5 @@ const (
 	ErrRowDelete  DBError = "Row Delete"
 	ErrRowCreate  DBError = "Row Create"
 	ErrRowUpdate  DBError = "Row Update"
+	ErrNoRows     DBError = "No Rows Found"
 )

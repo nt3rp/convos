@@ -1,6 +1,8 @@
 package db
 
 import (
+	"database/sql"
+
 	"github.com/juju/errgo"
 	_ "github.com/lib/pq"
 )
@@ -65,6 +67,10 @@ func GetConvo(id string) (*Convo, error) {
 		&c.Id, &c.Parent, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
 	)
 
+	if err == sql.ErrNoRows {
+		return c, errgo.WithCausef(err, ErrNoRows, "Unable to find convo with id '%s'.", id)
+	}
+
 	if err != nil {
 		return c, errgo.WithCausef(err, ErrRowScan, "Error Scanning Row")
 	}
@@ -78,16 +84,20 @@ func DeleteConvo(id string) error {
 		return err
 	}
 
-	_, err = db.Exec(`
+	result, err := db.Exec(`
 		DELETE
 		FROM convos
 		WHERE id = $1
 	`, id)
 
-	// TODO: Check rows affected
+	count, _ := result.RowsAffected()
+
+	if err == sql.ErrNoRows || count == 0 {
+		return errgo.WithCausef(err, ErrNoRows, "Unable to find convo with id '%s'.", id)
+	}
 
 	if err != nil {
-		return errgo.WithCausef(err, ErrRowDelete, "Error Deleting Rows")
+		return errgo.WithCausef(err, ErrRowDelete, "Error deleting convo.")
 	}
 
 	return nil

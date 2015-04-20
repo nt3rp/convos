@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"strconv"
 
 	"github.com/juju/errgo"
 	_ "github.com/lib/pq"
@@ -14,7 +15,7 @@ type Convo struct {
 	Parent    int      `json:"parent"`
 	Subject   string   `json:"subject"`
 	Body      string   `json:"body"`
-	Status    string   `json:"status"`
+	Read      bool     `json:"read"`
 	Children  []*Convo `json:"replies"`
 }
 
@@ -29,17 +30,19 @@ func GetConvos(userId string) ([]*Convo, error) {
 	}
 
 	rows, err := db.Query(`
-		SELECT id, parent_id, sender_id, recipient_id, subject, body
-		FROM convos
-		WHERE parent_id = id
-		AND (sender_id = $1 OR recipient_id = $1)
+		SELECT
+		c.id, c.parent_id, c.sender_id, c.recipient_id, c.subject, c.body, r.user_id is not null
+		FROM convos AS c
+		LEFT JOIN read_status AS r ON r.thread_id = c.id AND r.user_id = $1
+		WHERE c.parent_id = c.id
+		AND (c.sender_id = $1 OR c.recipient_id = $1)
 	`, userId)
 	defer rows.Close()
 
 	var cs []*Convo
 	for rows.Next() {
 		c := &Convo{}
-		if err := rows.Scan(&c.Id, &c.Parent, &c.Sender, &c.Recipient, &c.Subject, &c.Body); err != nil {
+		if err := rows.Scan(&c.Id, &c.Parent, &c.Sender, &c.Recipient, &c.Subject, &c.Body, &c.Read); err != nil {
 			return cs, errgo.WithCausef(err, ErrRowScan, "Error Scanning Row")
 		}
 
@@ -61,12 +64,13 @@ func GetConvo(userId, convoId string) (*Convo, error) {
 
 	c := &Convo{}
 	err = db.QueryRow(`
-		SELECT id, parent_id, sender_id, recipient_id, subject, body
+		SELECT c.id, c.parent_id, c.sender_id, c.recipient_id, c.subject, c.body, r.user_id is not null
 		FROM convos
+		LEFT JOIN read_status AS r ON r.thread_id = c.id AND r.user_id = $2
 		WHERE id = $1
-		AND (sender_id = $2 OR recipient_id = $2)
+		AND (c.sender_id = $2 OR c.recipient_id = $2)
 	`, convoId, userId).Scan(
-		&c.Id, &c.Parent, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
+		&c.Id, &c.Parent, &c.Sender, &c.Recipient, &c.Subject, &c.Body, &c.Read,
 	)
 
 	if err == sql.ErrNoRows {
@@ -86,6 +90,8 @@ func DeleteConvo(userId, convoId string) error {
 		return err
 	}
 
+	// No need to update read status on delete, should be handled by DB
+
 	result, err := db.Exec(`
 		DELETE
 		FROM convos
@@ -93,14 +99,14 @@ func DeleteConvo(userId, convoId string) error {
 		AND (sender_id = $2 OR recipient_id = $2)
 	`, convoId, userId)
 
+	if err != nil {
+		return errgo.WithCausef(err, ErrRowDelete, "Error deleting convo.")
+	}
+
 	count, _ := result.RowsAffected()
 
 	if err == sql.ErrNoRows || count == 0 {
 		return errgo.WithCausef(err, ErrNoRows, "Unable to find convo with id '%s'.", convoId)
-	}
-
-	if err != nil {
-		return errgo.WithCausef(err, ErrRowDelete, "Error deleting convo.")
 	}
 
 	return nil
@@ -112,8 +118,21 @@ func CreateConvo(userId string, convo *Convo) (*Convo, error) {
 		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
 	}
 
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, errgo.WithCausef(err, ErrTransaction, "Error starting transaction")
+	}
+
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+			return
+		}
+		err = tx.Commit()
+	}()
+
 	c := &Convo{}
-	err = db.QueryRow(`
+	err = tx.QueryRow(`
 		INSERT INTO
 		convos (parent_id, sender_id, recipient_id, subject, body)
 		VALUES (
@@ -129,32 +148,52 @@ func CreateConvo(userId string, convo *Convo) (*Convo, error) {
 	)
 
 	if err != nil {
-		return nil, errgo.WithCausef(err, ErrRowCreate, "Error Creating Rows")
+		return nil, errgo.WithCausef(err, ErrRowCreate, "Error creating conversation")
 	}
+
+	result, err := tx.Exec(`
+		INSERT INTO
+		read_status (user_id, thread_id)
+		VALUES ($1, $2)
+	`, userId, c.Id)
+
+	if err != nil {
+		return nil, errgo.WithCausef(err, ErrRowCreate, "Error updating read status")
+	}
+
+	count, _ := result.RowsAffected()
+
+	if err == sql.ErrNoRows || count == 0 {
+		return nil, errgo.WithCausef(err, ErrRowCreate, "Unable to update read status")
+	}
+
+	c.Read = true
 
 	return c, nil
 }
 
-func UpdateConvo(userId, convoId, body string) (*Convo, error) {
+func UpdateConvo(userId, convoId string, patch map[string]string) (*Convo, error) {
 	db, err := DB()
 	if err != nil {
 		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
 	}
 
-	c := &Convo{}
-	err = db.QueryRow(`
-		UPDATE convos
-		SET body = $2
-		WHERE id = $1
-		AND (sender_id = $3 OR recipient_id = $3)
-		RETURNING id, sender_id, recipient_id, subject, body
-	`, convoId, body, userId).Scan(
-		&c.Id, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
-	)
+	val, ok := patch["read"]
+	read, _ := strconv.ParseBool(val)
+	if ok {
+		var stmt string
+		if read {
+			stmt = "INSERT INTO read_status (user_id, thread_id) VALUES ($1, $2)"
+		} else {
+			stmt = "DELETE FROM read_status WHERE user_id = $1, thread_id = $2"
+		}
 
-	if err != nil {
-		return nil, errgo.WithCausef(err, ErrRowUpdate, "Error Updating Row")
+		_, err := db.Exec(stmt, userId, convoId)
+
+		if err != nil {
+			return nil, errgo.WithCausef(err, ErrRowCreate, "Error updating read status")
+		}
 	}
 
-	return c, nil
+	return GetConvo(userId, convoId)
 }

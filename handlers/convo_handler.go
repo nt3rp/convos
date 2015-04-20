@@ -16,9 +16,6 @@ var (
 )
 
 func returnEnvelope(r render.Render, obj interface{}, err error) {
-	// We are able to distinguish between multiple error types,
-	// but for all the errors we have, they indicate an internal server error
-
 	switch errgo.Cause(err) {
 	case nil:
 		// We could issue more specific http status codes for 'ok' (especially when creating objects)
@@ -26,6 +23,16 @@ func returnEnvelope(r render.Render, obj interface{}, err error) {
 		r.JSON(http.StatusOK, NewJsonEnvelopeFromObj(obj))
 	case db.ErrNoRows:
 		r.JSON(http.StatusNotFound, NewJsonEnvelopeFromError(err))
+	case db.ErrRowScan:
+		fallthrough
+	case db.ErrRowUnknown:
+		fallthrough
+	case db.ErrRowDelete:
+		fallthrough
+	case db.ErrRowCreate:
+		fallthrough
+	case db.ErrRowUpdate:
+		r.JSON(http.StatusBadRequest, NewJsonEnvelopeFromError(err))
 	default:
 		r.JSON(http.StatusInternalServerError, NewJsonEnvelopeFromError(err))
 	}

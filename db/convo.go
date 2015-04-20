@@ -58,12 +58,13 @@ func GetConvos(userId string) ([]*Convo, error) {
 }
 
 func GetConvo(userId, convoId string) (*Convo, error) {
+	c := &Convo{}
+
 	db, err := DB()
 	if err != nil {
-		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
+		return c, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
 	}
 
-	c := &Convo{}
 	err = db.QueryRow(`
 		SELECT c.id, c.parent_id, c.sender_id, c.recipient_id, c.subject, c.body, r.user_id is not null
 		FROM convos AS c
@@ -179,6 +180,12 @@ func UpdateConvo(userId, convoId string, patch map[string]string) (*Convo, error
 		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
 	}
 
+	convo, err := GetConvo(userId, convoId)
+	if err != nil {
+		return convo, err
+	}
+
+	// Only proceed to update the read status if we were able to access the object
 	val, ok := patch["read"]
 	read, _ := strconv.ParseBool(val)
 	if ok {
@@ -186,7 +193,7 @@ func UpdateConvo(userId, convoId string, patch map[string]string) (*Convo, error
 		if read {
 			stmt = "INSERT INTO read_status (user_id, thread_id) VALUES ($1, $2)"
 		} else {
-			stmt = "DELETE FROM read_status WHERE user_id = $1, thread_id = $2"
+			stmt = "DELETE FROM read_status WHERE user_id = $1 AND thread_id = $2"
 		}
 
 		_, err := db.Exec(stmt, userId, convoId)
@@ -196,5 +203,5 @@ func UpdateConvo(userId, convoId string, patch map[string]string) (*Convo, error
 		}
 	}
 
-	return GetConvo(userId, convoId)
+	return convo, err
 }

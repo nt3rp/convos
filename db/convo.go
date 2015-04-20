@@ -144,7 +144,7 @@ func CreateConvo(userId string, convo *Convo) (*Convo, error) {
 			$2, $3, $4, $5
 		)
 		RETURNING id, parent_id, sender_id, recipient_id, subject, body
-	`, convo.Parent, convo.Sender, convo.Recipient, convo.Subject, convo.Body).Scan(
+	`, convo.Parent, userId, convo.Recipient, convo.Subject, convo.Body).Scan(
 		&c.Id, &c.Parent, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
 	)
 

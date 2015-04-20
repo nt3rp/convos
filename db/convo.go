@@ -65,7 +65,7 @@ func GetConvo(userId, convoId string) (*Convo, error) {
 	c := &Convo{}
 	err = db.QueryRow(`
 		SELECT c.id, c.parent_id, c.sender_id, c.recipient_id, c.subject, c.body, r.user_id is not null
-		FROM convos
+		FROM convos AS c
 		LEFT JOIN read_status AS r ON r.thread_id = c.id AND r.user_id = $2
 		WHERE id = $1
 		AND (c.sender_id = $2 OR c.recipient_id = $2)

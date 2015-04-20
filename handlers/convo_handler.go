@@ -20,6 +20,8 @@ func returnEnvelope(r render.Render, obj interface{}, err error) {
 		// We could issue more specific http status codes for 'ok' (especially when creating objects)
 		// but `ok` should be good enough for now.
 		r.JSON(http.StatusOK, NewJsonEnvelopeFromObj(obj))
+	case db.ErrNoRows:
+		r.JSON(http.StatusNotFound, NewJsonEnvelopeFromError(err))
 	default:
 		r.JSON(http.StatusInternalServerError, NewJsonEnvelopeFromError(err))
 	}
@@ -64,7 +66,7 @@ func UpdateConvo(req *http.Request, params martini.Params, r render.Render) {
 	patch, err := getJsonFromRequest(req)
 
 	if err != nil {
-		r.JSON(500, NewJsonEnvelopeFromError(err))
+		returnEnvelope(r, patch, err)
 		return
 	}
 
@@ -77,7 +79,7 @@ func CreateConvo(req *http.Request, params martini.Params, r render.Render) {
 	convo, err := getConvoFromRequest(req)
 
 	if err != nil {
-		r.JSON(500, NewJsonEnvelopeFromError(err))
+		returnEnvelope(r, convo, err)
 		return
 	}
 
@@ -89,7 +91,7 @@ func CreateConvo(req *http.Request, params martini.Params, r render.Render) {
 		// This incurs an extra DB call, but it seems like the simplest course of action to maintain the subject
 		parent, err := db.GetConvo(params["id"])
 		if err != nil {
-			r.JSON(500, NewJsonEnvelopeFromError(err))
+			returnEnvelope(r, convo, err)
 			return
 		}
 

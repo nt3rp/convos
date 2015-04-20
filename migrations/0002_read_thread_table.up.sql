@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS users (
+  id  INTEGER NOT NULL  PRIMARY KEY,
+  fullname VARCHAR(255)
+);
+
+CREATE TABLE read_status (
+  thread_id  INTEGER  NOT NULL           REFERENCES convos(id) ON DELETE CASCADE,
+  user_id    INTEGER  DEFAULT 0 NOT NULL REFERENCES users(id) ON DELETE SET DEFAULT
+);
+
+ALTER TABLE convos ADD FOREIGN KEY (recipient_id) REFERENCES users(id);
+ALTER TABLE convos ADD FOREIGN KEY (sender_id) REFERENCES users(id);

@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"strconv"
 
 	"github.com/juju/errgo"
 	_ "github.com/lib/pq"
@@ -22,7 +23,7 @@ func (c *Convo) Validate() bool {
 	return true
 }
 
-func GetConvos() ([]*Convo, error) {
+func GetConvos(userId string) ([]*Convo, error) {
 	db, err := DB()
 	if err != nil {
 		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
@@ -32,7 +33,8 @@ func GetConvos() ([]*Convo, error) {
 		SELECT id, parent_id, sender_id, recipient_id, subject, body
 		FROM convos
 		WHERE parent_id = id
-	`)
+		AND (sender_id = $1 OR recipient_id = $1)
+	`, userId)
 	defer rows.Close()
 
 	var cs []*Convo
@@ -52,7 +54,7 @@ func GetConvos() ([]*Convo, error) {
 	return cs, nil
 }
 
-func GetConvo(id string) (*Convo, error) {
+func GetConvo(userId, convoId string) (*Convo, error) {
 	db, err := DB()
 	if err != nil {
 		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
@@ -63,12 +65,13 @@ func GetConvo(id string) (*Convo, error) {
 		SELECT id, parent_id, sender_id, recipient_id, subject, body
 		FROM convos
 		WHERE id = $1
-	`, id).Scan(
+		AND (sender_id = $2 OR recipient_id = $2)
+	`, convoId, userId).Scan(
 		&c.Id, &c.Parent, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
 	)
 
 	if err == sql.ErrNoRows {
-		return c, errgo.WithCausef(err, ErrNoRows, "Unable to find convo with id '%s'.", id)
+		return c, errgo.WithCausef(err, ErrNoRows, "Unable to find convo with id '%s'.", convoId)
 	}
 
 	if err != nil {
@@ -78,7 +81,7 @@ func GetConvo(id string) (*Convo, error) {
 	return c, nil
 }
 
-func DeleteConvo(id string) error {
+func DeleteConvo(userId, convoId string) error {
 	db, err := DB()
 	if err != nil {
 		return err
@@ -88,12 +91,13 @@ func DeleteConvo(id string) error {
 		DELETE
 		FROM convos
 		WHERE id = $1
-	`, id)
+		AND (sender_id = $2 OR recipient_id = $2)
+	`, convoId, userId)
 
 	count, _ := result.RowsAffected()
 
 	if err == sql.ErrNoRows || count == 0 {
-		return errgo.WithCausef(err, ErrNoRows, "Unable to find convo with id '%s'.", id)
+		return errgo.WithCausef(err, ErrNoRows, "Unable to find convo with id '%s'.", convoId)
 	}
 
 	if err != nil {
@@ -103,7 +107,7 @@ func DeleteConvo(id string) error {
 	return nil
 }
 
-func CreateConvo(convo *Convo) (*Convo, error) {
+func CreateConvo(userId string, convo *Convo) (*Convo, error) {
 	db, err := DB()
 	if err != nil {
 		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
@@ -132,7 +136,7 @@ func CreateConvo(convo *Convo) (*Convo, error) {
 	return c, nil
 }
 
-func UpdateConvo(id, body string) (*Convo, error) {
+func UpdateConvo(userId, convoId, body string) (*Convo, error) {
 	db, err := DB()
 	if err != nil {
 		return nil, errgo.WithCausef(err, ErrConnection, "Error retrieving DB Connection")
@@ -143,8 +147,9 @@ func UpdateConvo(id, body string) (*Convo, error) {
 		UPDATE convos
 		SET body = $2
 		WHERE id = $1
+		AND (sender_id = $3 OR recipient_id = $3)
 		RETURNING id, sender_id, recipient_id, subject, body
-	`, id, body).Scan(
+	`, convoId, body, userId).Scan(
 		&c.Id, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
 	)
 

@@ -18,10 +18,8 @@ func main() {
 
 	// Add additional middleware
 	m.Use(render.Renderer())
-	// TODO: Add "Authorization" middleware that restricts user access to their convos
 
 	// Define Routes
-	// TODO: Fix trailing slashes
 	m.Group("/convos", func(r martini.Router) {
 		r.Get("/", handlers.GetConvos)
 		r.Post("/", handlers.CreateConvo)
@@ -29,7 +27,7 @@ func main() {
 		r.Patch("/:id/", handlers.UpdateConvo)
 		r.Delete("/:id/", handlers.DeleteConvo)
 		r.Post("/:id/reply/", handlers.CreateConvo)
-	})
+	}, handlers.UserAuthorizationMiddleware)
 
 	log.Printf("listening on %v\n", httpPort)
 	httpAddr := fmt.Sprintf(":%d", httpPort)

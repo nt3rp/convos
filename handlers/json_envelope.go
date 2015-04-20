@@ -48,14 +48,11 @@ func NewJsonEnvelopeFromObj(objs interface{}) JsonEnvelope {
 }
 
 func NewJsonEnvelopeFromError(err error) JsonEnvelope {
-	var errors []map[string]string
-
 	error := map[string]string{
 		"message": err.Error(),
 	}
-	errors = append(errors, error)
 
 	meta := map[string]string{"count": "1"}
 
-	return NewJsonEnvelope("", meta, errors)
+	return NewJsonEnvelope("", meta, error)
 }

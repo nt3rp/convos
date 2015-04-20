@@ -50,6 +50,7 @@ func getConvoFromRequest(req *http.Request) (*db.Convo, error) {
 func getJsonFromRequest(req *http.Request) (map[string]string, error) {
 	decoder := json.NewDecoder(req.Body)
 
+	// TODO: string to interface?
 	var jsonObj map[string]string
 	err := decoder.Decode(&jsonObj)
 

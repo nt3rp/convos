@@ -7,12 +7,14 @@ func (e DBError) Error() string {
 }
 
 const (
-	ErrConnection  DBError = "DB Connection"
-	ErrRowScan     DBError = "Row Scan"
-	ErrRowUnknown  DBError = "Row Unknown"
-	ErrRowDelete   DBError = "Row Delete"
-	ErrRowCreate   DBError = "Row Create"
-	ErrRowUpdate   DBError = "Row Update"
-	ErrNoRows      DBError = "No Rows Found"
-	ErrTransaction DBError = "Transaction Problem"
+	ErrConnection    DBError = "DB Connection"
+	ErrRowScan       DBError = "Row Scan"
+	ErrRowUnknown    DBError = "Row Unknown"
+	ErrRowDelete     DBError = "Row Delete"
+	ErrRowCreate     DBError = "Row Create"
+	ErrRowUpdate     DBError = "Row Update"
+	ErrNoRows        DBError = "No Rows Found"
+	ErrTransaction   DBError = "Transaction Problem"
+	ErrUninitialized DBError = "DB Uninitialized"
+	ErrTruncate      DBError = "Truncate Error"
 )

@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
+	"github.com/nt3rp/convos/db"
 	"github.com/nt3rp/convos/handlers"
 )
 
@@ -14,6 +15,9 @@ var (
 )
 
 func main() {
+	// Initialize Database
+	db.Initialize("convos")
+
 	m := martini.Classic()
 
 	// Add additional middleware

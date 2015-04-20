@@ -28,6 +28,14 @@ The application runs on port `8080` by default,
 ./server.sh
 ```
 
+## Tests
+
+Running the tests will create a test database, `test_convos` that will be used to run the tests.
+
+```bash
+./test.sh
+```
+
 ## Assumptions / Constraints
 
 - A message only has one sender

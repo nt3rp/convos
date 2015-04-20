@@ -27,7 +27,7 @@ func GetConvos() ([]*Convo, error) {
 	}
 
 	rows, err := db.Query(`
-		SELECT id, sender_id, recipient_id, subject, body
+		SELECT id, parent_id, sender_id, recipient_id, subject, body
 		FROM convos
 		WHERE parent_id = id
 	`)
@@ -36,7 +36,7 @@ func GetConvos() ([]*Convo, error) {
 	var cs []*Convo
 	for rows.Next() {
 		c := &Convo{}
-		if err := rows.Scan(&c.Id, &c.Sender, &c.Recipient, &c.Subject, &c.Body); err != nil {
+		if err := rows.Scan(&c.Id, &c.Parent, &c.Sender, &c.Recipient, &c.Subject, &c.Body); err != nil {
 			return cs, errgo.WithCausef(err, ErrRowScan, "Error Scanning Row")
 		}
 
@@ -58,11 +58,11 @@ func GetConvo(id string) (*Convo, error) {
 
 	c := &Convo{}
 	err = db.QueryRow(`
-		SELECT id, sender_id, recipient_id, subject, body
+		SELECT id, parent_id, sender_id, recipient_id, subject, body
 		FROM convos
 		WHERE id = $1
 	`, id).Scan(
-		&c.Id, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
+		&c.Id, &c.Parent, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
 	)
 
 	if err != nil {
@@ -103,10 +103,16 @@ func CreateConvo(convo *Convo) (*Convo, error) {
 	err = db.QueryRow(`
 		INSERT INTO
 		convos (parent_id, sender_id, recipient_id, subject, body)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, sender_id, recipient_id, subject, body
+		VALUES (
+			CASE
+			    WHEN $1=0 THEN lastval()
+				ELSE $1
+			END,
+			$2, $3, $4, $5
+		)
+		RETURNING id, parent_id, sender_id, recipient_id, subject, body
 	`, convo.Parent, convo.Sender, convo.Recipient, convo.Subject, convo.Body).Scan(
-		&c.Id, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
+		&c.Id, &c.Parent, &c.Sender, &c.Recipient, &c.Subject, &c.Body,
 	)
 
 	if err != nil {

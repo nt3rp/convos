@@ -81,12 +81,19 @@ func CreateConvo(req *http.Request, params martini.Params, r render.Render) {
 		return
 	}
 
-	// For now, just suppress the error
+	// For now, just suppress the conversion error
 	id, _ := strconv.Atoi(params["id"])
 	if id > 0 {
-		// TODO: Need to get Subject from parent...
-		// TODO: What if parent does not exist?
 		convo.Parent = id
+
+		// This incurs an extra DB call, but it seems like the simplest course of action to maintain the subject
+		parent, err := db.GetConvo(params["id"])
+		if err != nil {
+			r.JSON(500, NewJsonEnvelopeFromError(err))
+			return
+		}
+
+		convo.Subject = parent.Subject
 	}
 
 	// TODO: Need to return the saved object from the DB...

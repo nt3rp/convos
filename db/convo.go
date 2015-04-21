@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"strconv"
 
 	"github.com/juju/errgo"
@@ -17,6 +18,11 @@ type Convo struct {
 	Body      string   `json:"body"`
 	Read      bool     `json:"read"`
 	Children  []*Convo `json:"replies"`
+}
+
+func (c *Convo) ToJson() string {
+	json, _ := json.Marshal(c)
+	return string(json)
 }
 
 func (c *Convo) Validate() bool {
@@ -105,9 +111,13 @@ func DeleteConvo(userId, convoId string) error {
 		return errgo.WithCausef(err, ErrRowDelete, "Error deleting convo.")
 	}
 
-	count, _ := result.RowsAffected()
+	count, err := result.RowsAffected()
 
-	if err == sql.ErrNoRows || count == 0 {
+	if err != nil {
+		return errgo.WithCausef(err, ErrRowDelete, "Error deleting convo.")
+	}
+
+	if count == 0 {
 		return errgo.WithCausef(err, ErrNoRows, "Unable to find convo with id '%s'.", convoId)
 	}
 
@@ -192,8 +202,10 @@ func UpdateConvo(userId, convoId string, patch map[string]string) (*Convo, error
 		var stmt string
 		if read {
 			stmt = "INSERT INTO read_status (user_id, thread_id) VALUES ($1, $2)"
+			convo.Read = true
 		} else {
 			stmt = "DELETE FROM read_status WHERE user_id = $1 AND thread_id = $2"
+			convo.Read = false
 		}
 
 		_, err := db.Exec(stmt, userId, convoId)

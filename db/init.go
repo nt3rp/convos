@@ -2,20 +2,27 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
+
+	"github.com/juju/errgo"
 )
 
 var (
 	dbSession *sql.DB
 )
 
-func DB() (*sql.DB, error) {
-	if dbSession != nil {
-		return dbSession, nil
-	}
+func Initialize(dbName string) {
+	db, err := Connect(dbName)
 
-	// TODO: Make params configurable
-	db, err := sql.Open("postgres", "dbname=convos sslmode=disable")
+	if err != nil {
+		dbSession = db
+	}
+}
+
+func Connect(dbName string) (*sql.DB, error) {
+	connParams := fmt.Sprintf("dbname=%s sslmode=disable", dbName)
+	db, err := sql.Open("postgres", connParams)
 	if err != nil {
 		log.Fatal(err)
 	} else {
@@ -23,4 +30,12 @@ func DB() (*sql.DB, error) {
 	}
 
 	return db, err
+}
+
+func DB() (*sql.DB, error) {
+	if dbSession != nil {
+		return dbSession, nil
+	}
+
+	return nil, errgo.WithCausef(ErrUninitialized, ErrUninitialized, "Database was not initialized")
 }
